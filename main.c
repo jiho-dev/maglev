@@ -144,9 +144,10 @@ void maglev_test() {
     hash_data = hash_multiple_bytes();
 
     struct ofputil_bucket *selected_bkt;
+    uint32_t expected_bkt_id = 5;
     selected_bkt = mh_lookup(&group, hash_data);
 
-    VLOG_INFO("Selected bucket: bkt_id=%d", selected_bkt->bucket_id);
+    VLOG_INFO("Selected bucket: bkt_id=%d, expected=%d", selected_bkt->bucket_id, expected_bkt_id);
 
     mh_destruct(&group);
 
