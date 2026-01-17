@@ -13,6 +13,7 @@
 typedef unsigned int uint32, uint32_t, ovs_be32, u32;
 typedef unsigned short uint16, uint16_t, ovs_be16, u16;
 
+// from ovs code
 struct hash_val {
     union {
         ovs_be32 ipv4_addr;
@@ -27,7 +28,7 @@ struct hash_val {
     ovs_be16 tp_port;
 } hash_val;
 
-struct hash_data {
+struct hash_entry {
     struct ovs_list node;
 
     uint32_t sip;
@@ -41,7 +42,8 @@ struct hash_data {
 
 ///////////////////////////
 
-int read_hash_value(struct ovs_list *in_hash_list);
+int load_input_data(struct ovs_list *input_list);
+int free_input_data(struct ovs_list *input_list);
 
 //////////////////////////////
 
@@ -122,7 +124,7 @@ uint32_t hash_multiple_bytes() {
     return hash;
 }
 
-uint32_t get_hash(struct hash_data *in) {
+uint32_t get_hash(struct hash_entry *in) {
     struct hash_val hval;
 
     memset(&hval, 0, sizeof hval);
@@ -199,14 +201,14 @@ void maglev_test() {
 
     mh_construct(&group);
 
-    struct ovs_list in_hash_list;
-    ovs_list_init(&in_hash_list);
+    struct ovs_list input_list;
+    ovs_list_init(&input_list);
     
     // load hashes to be verified
-    read_hash_value(&in_hash_list);
+    load_input_data(&input_list);
 
-    struct hash_data *hdata;
-    uint32_t node_hash;
+    struct hash_entry *hentry;
+    uint32_t calc_hash;
     uint32_t idx=1;
     uint32_t mismatched=0;
 
@@ -214,13 +216,14 @@ void maglev_test() {
     VLOG_INFO("Verify Maglev Hash result");
 
     struct ofputil_bucket *bkt;
-    LIST_FOR_EACH (hdata, node, &in_hash_list) {
-        node_hash = get_hash(hdata);
-        bkt = mh_lookup(&group, node_hash);
-        if (bkt->bucket_id != hdata->bkt_id) {
-            VLOG_INFO("%d: compare: bkt_id=%d:%d hash=0x%x:0x%x", idx, 
-                      bkt->bucket_id, hdata->bkt_id,
-                      node_hash, hdata->hash);
+    LIST_FOR_EACH (hentry, node, &input_list) {
+        calc_hash = get_hash(hentry);
+
+        bkt = mh_lookup(&group, calc_hash);
+        if (bkt->bucket_id != hentry->bkt_id) {
+            VLOG_INFO("%d: mismatched: bkt_id=%d:%d hash=0x%x:0x%x", idx, 
+                      bkt->bucket_id, hentry->bkt_id,
+                      calc_hash, hentry->hash);
 
             mismatched ++;
         }
@@ -232,26 +235,27 @@ void maglev_test() {
 
     mh_destruct(&group);
     free_bucket(&group);
+    free_input_data(&input_list);
 
     VLOG_INFO("End maglev test ");
 }
 
-int read_hash_value(struct ovs_list *in_hash_list) {
+int load_input_data(struct ovs_list *input_list) {
     FILE *fp;
     char buffer[1024];
-    char *fname = "./hash_value.txt";
+    char *fname = "./input_data.txt";
 
-    VLOG_INFO("Load hash entries");
+    VLOG_INFO("Load hash entries from %s", fname);
 
     fp = fopen(fname, "r");
     if (fp == NULL) {
         VLOG_ERROR("failed to open file: %s", fname);
-        return 1;
+        return 0;
     }
 
     char *token;
     char *delimiters = " ";
-    int line_count = 1;
+    int line_count = 0;
 
     while (fgets(buffer, sizeof(buffer), fp) != NULL) {
         if (buffer[0] == '#') {
@@ -260,7 +264,7 @@ int read_hash_value(struct ovs_list *in_hash_list) {
 
         line_count ++;
 
-        struct hash_data *in_hash = calloc(1, sizeof(struct hash_data));
+        struct hash_entry *in_hash = calloc(1, sizeof(struct hash_entry));
         in_hash->protocol = 6; // tcp
 
         token = strtok(buffer, delimiters);
@@ -295,7 +299,7 @@ int read_hash_value(struct ovs_list *in_hash_list) {
         }
 
         ovs_list_init(&in_hash->node);
-        ovs_list_push_back(in_hash_list, &in_hash->node);
+        ovs_list_push_back(input_list, &in_hash->node);
 
 #if 0
         VLOG_DEBUG("Hash node: 0x%x:0x%x->0x%x:0x%x 0x%x %d", 
@@ -313,9 +317,21 @@ int read_hash_value(struct ovs_list *in_hash_list) {
 
     fclose(fp);
 
-    return 0;
+    return line_count;
 }
 
+int free_input_data(struct ovs_list *input_list) {
+    struct hash_entry *h, *next;
+
+    LIST_FOR_EACH_SAFE(h, next, node, input_list) {
+        ovs_list_remove(&h->node);
+
+        //VLOG_INFO("free input data: %p", h);
+        free(h);
+    }
+
+    return 0;
+}
 
 int main() {
     VLOG_INFO("Start maglev simulater ");
