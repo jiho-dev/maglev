@@ -433,6 +433,8 @@ is_pow2(uintmax_t x)
     (!(OBJ) || (uintptr_t) (OBJ) % __alignof__(OVS_TYPEOF(OBJ)) == 0)
 
 
+uint32_t ip2int(const char *ip_str);
+
 static inline uint32_t get_unaligned_u32(const uint32_t *p_)
 {
     const uint8_t *p = (const uint8_t *) p_;

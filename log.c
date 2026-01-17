@@ -7,10 +7,10 @@
 LogLevel current_log_level = LOG_LEVEL_DEBUG; 
 
 const char* log_level_strings[LOG_LEVEL_COUNT] = {
-    "[ERROR]",
-    "[WARN]",
-    "[INFO]",
-    "[DEBUG]"
+    "[ERR]",
+    "[WRN]",
+    "[INF]",
+    "[DBG]"
 };
 
 void my_log_printf(LogLevel level, const char* format, ...) {
