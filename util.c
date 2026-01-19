@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <arpa/inet.h>
+#include <string.h>
+#include <ctype.h>
 
 // network order
 uint32_t ip2int(const char *ip_str) {
@@ -22,5 +24,16 @@ uint32_t ip2int(const char *ip_str) {
 
     return (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
 #endif
+}
+
+char* trim (char *s)
+{
+    int i;
+
+    while (isspace (*s)) s++;   // skip left side white spaces
+    for (i = strlen (s) - 1; (isspace (s[i])); i--) ;   // skip right side white spaces
+    s[i + 1] = '\0';
+
+    return s;
 }
 

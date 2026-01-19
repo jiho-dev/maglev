@@ -52,6 +52,26 @@ struct maglev_hash_service {
 struct group_dpif;
 struct ofputil_bucket;
 
+//////////////////////
+//
+typedef unsigned int uint32, uint32_t, ovs_be32, u32;
+typedef unsigned short uint16, uint16_t, ovs_be16, u16;
+
+// from ovs code
+struct hash_val {
+    union {
+        ovs_be32 ipv4_addr;
+        struct in6_addr ipv6_addr;
+    } tunnel;
+
+    union {
+        ovs_be32 ipv4_addr;
+        struct in6_addr ipv6_addr;
+    } pkt;
+
+    ovs_be16 tp_port;
+} hash_val;
+
 ////////////////////////////////////////
 
 void                   mh_construct(struct group_dpif *new_group);

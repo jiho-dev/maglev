@@ -9,41 +9,9 @@
 #include "hash.h"
 #include "group.h"
 #include "log.h"
+#include "maglev_hash.h"
+#include "test_vector.h"
 
-typedef unsigned int uint32, uint32_t, ovs_be32, u32;
-typedef unsigned short uint16, uint16_t, ovs_be16, u16;
-
-// from ovs code
-struct hash_val {
-    union {
-        ovs_be32 ipv4_addr;
-        struct in6_addr ipv6_addr;
-    } tunnel;
-
-    union {
-        ovs_be32 ipv4_addr;
-        struct in6_addr ipv6_addr;
-    } pkt;
-
-    ovs_be16 tp_port;
-} hash_val;
-
-struct hash_entry {
-    struct ovs_list node;
-
-    uint32_t sip;
-    uint16_t sport;
-    uint32_t dip;
-    uint16_t dport;
-    uint8_t protocol;
-    uint32_t hash;
-    uint32_t bkt_id;
-};
-
-///////////////////////////
-
-int load_input_data(struct ovs_list *input_list);
-int free_input_data(struct ovs_list *input_list);
 
 //////////////////////////////
 
@@ -124,7 +92,7 @@ uint32_t hash_multiple_bytes() {
     return hash;
 }
 
-uint32_t get_hash(struct hash_entry *in) {
+uint32_t get_hash(struct tv_entry *in) {
     struct hash_val hval;
 
     memset(&hval, 0, sizeof hval);
@@ -161,7 +129,7 @@ int add_bucket(struct group_dpif *group, int bkt_cnt, int weight) {
     struct ofputil_bucket *bkt;
 
     for (i=0; i<bkt_cnt; i++) {
-        bkt = calloc(sizeof(struct ofputil_bucket), 1);
+        bkt = calloc(1, sizeof(struct ofputil_bucket));
 
         bkt->weight = weight;
         bkt->bucket_id = i + 1;
@@ -182,162 +150,78 @@ void free_bucket(struct group_dpif *group) {
     }
 }
 
-void maglev_test() {
-    VLOG_INFO("Start verifying Maglev");
+void maglev_verify(test_vector_t *tv) {
+    VLOG_INFO("Start verifying Maglev: GroupId=%d, hash_tab_idx=%d, num_bkts=%d, bkt_weight=%d, num_tv=%d", 
+              tv->maglev_id,
+              tv->maglev_hash_table_size_index,
+              tv->num_buckets,
+              tv->bucket_weight,
+              tv->num_tv_entries);
 
     struct group_dpif group;
 
     memset(&group, 0, sizeof(group));
     ovs_list_init(&group.up.buckets);
 
-    group.hash_alg = 5;  // table size: 0 ~ 10
+    // set group info
+    group.hash_alg = tv->maglev_hash_table_size_index;  // table size: 0 ~ 10
     group.hash_basis = 0;
-    group.up.group_id = 100;
+    group.up.group_id = tv->maglev_id;
 
-    // add 3 buckets
-    int nbkts = 3;
-    int weight = 10;
+    // add buckets
+    int nbkts = tv->num_buckets;
+    int weight = tv->bucket_weight;
     add_bucket(&group, nbkts, weight);
 
     mh_construct(&group);
-
-    struct ovs_list input_list;
-    ovs_list_init(&input_list);
     
-    // load hashes to be verified
-    load_input_data(&input_list);
-
-    struct hash_entry *hentry;
+    struct tv_entry *entry;
     uint32_t calc_hash;
     uint32_t idx=1;
-    uint32_t mismatched=0;
 
     // verify them
     VLOG_INFO("Verify Maglev Hash result");
 
     struct ofputil_bucket *bkt;
-    LIST_FOR_EACH (hentry, node, &input_list) {
-        calc_hash = get_hash(hentry);
+    LIST_FOR_EACH (entry, node, &tv->tv_list) {
+        calc_hash = get_hash(entry);
 
         bkt = mh_lookup(&group, calc_hash);
-        if (bkt->bucket_id != hentry->bkt_id) {
+        if (bkt->bucket_id != entry->bkt_id) {
             VLOG_INFO("%d: mismatched: bkt_id=%d:%d hash=0x%x:0x%x", idx, 
-                      bkt->bucket_id, hentry->bkt_id,
-                      calc_hash, hentry->hash);
+                      bkt->bucket_id, entry->bkt_id,
+                      calc_hash, entry->hash);
 
-            mismatched ++;
+            tv->mismatched ++;
         }
 
         idx ++;
     }
 
-    VLOG_INFO("Verification Result: Total=%d, Mismatched=%d", idx, mismatched);
+    VLOG_INFO("Verification Result: Total=%d, Mismatched=%d", idx, tv->mismatched);
 
     mh_destruct(&group);
     free_bucket(&group);
-    free_input_data(&input_list);
 
     VLOG_INFO("End maglev test ");
-}
-
-int load_input_data(struct ovs_list *input_list) {
-    FILE *fp;
-    char buffer[1024];
-    char *fname = "./input_data.txt";
-
-    VLOG_INFO("Load hash entries from %s", fname);
-
-    fp = fopen(fname, "r");
-    if (fp == NULL) {
-        VLOG_ERROR("failed to open file: %s", fname);
-        return 0;
-    }
-
-    char *token;
-    char *delimiters = " ";
-    int line_count = 0;
-
-    while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-        if (buffer[0] == '#') {
-            continue;
-        }
-
-        line_count ++;
-
-        struct hash_entry *in_hash = calloc(1, sizeof(struct hash_entry));
-        in_hash->protocol = 6; // tcp
-
-        token = strtok(buffer, delimiters);
-        int idx=0;
-        char *endptr;
-        while (token != NULL) {
-            switch (idx) {
-            case 0:
-                in_hash->sip = ip2int(token);
-                break;
-            case 1:
-                in_hash->sport =  atoi(token);
-                in_hash->sport = htons(in_hash->sport);
-                break;
-            case 2:
-                in_hash->dip = ip2int(token);
-                break;
-            case 3:
-                in_hash->dport = atoi(token);
-                in_hash->dport = htons(in_hash->dport);
-                break;
-            case 4:
-                in_hash->hash = strtol(token, &endptr, 16);
-                break;
-            case 5:
-                in_hash->bkt_id =  atoi(token);
-                break;
-            }
-
-            idx++;
-            token = strtok(NULL, delimiters);
-        }
-
-        ovs_list_init(&in_hash->node);
-        ovs_list_push_back(input_list, &in_hash->node);
-
-#if 0
-        VLOG_DEBUG("Hash node: 0x%x:0x%x->0x%x:0x%x 0x%x %d", 
-                   in_hash->sip,
-                   in_hash->sport,
-                   in_hash->dip,
-                   in_hash->dport,
-                   in_hash->hash,
-                   in_hash->bkt_id);
-#endif
-
-    }
-
-    VLOG_INFO("Hash nodes to be verified: %d", line_count);
-
-    fclose(fp);
-
-    return line_count;
-}
-
-int free_input_data(struct ovs_list *input_list) {
-    struct hash_entry *h, *next;
-
-    LIST_FOR_EACH_SAFE(h, next, node, input_list) {
-        ovs_list_remove(&h->node);
-
-        //VLOG_INFO("free input data: %p", h);
-        free(h);
-    }
-
-    return 0;
 }
 
 int main() {
     VLOG_INFO("Start maglev simulater ");
 
     hash_test();
-    maglev_test();
+
+    // verify test vector
+    char *test_vect_file = "./test_vector1.txt";
+    // load test vectors to be verified
+    test_vector_t *tv = load_test_vector(test_vect_file);
+    if (tv == NULL) {
+        return 1;
+    }
+
+    maglev_verify(tv);
+
+    free_test_vector(tv);
 
     VLOG_INFO("End maglev simulater ");
 
