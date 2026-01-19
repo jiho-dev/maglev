@@ -4,6 +4,7 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <smmintrin.h>
+#include <unistd.h>
 
 #include "list.h"
 #include "hash.h"
@@ -206,13 +207,42 @@ void maglev_verify(test_vector_t *tv) {
     VLOG_INFO("End maglev test ");
 }
 
-int main() {
+void print_usage(char *pgname) {
+    printf("usage: %s [-h] [-v] [-n name]\n", pgname);
+    printf("options:\n");
+    printf("  -h       : print this help  \n");
+    printf("  -f [name]: test vector file name. \n");
+}
+
+
+int main(int argc, char *argv[]) {
+    int opt;
+    char *test_vect_file = NULL;
+
+    while ((opt = getopt(argc, argv, "hf:")) != -1) {
+        switch (opt) {
+            case 'h':
+                print_usage(argv[0]);
+                return 0;
+            case 'f':
+                test_vect_file = optarg;
+                break;
+            case '?':
+                print_usage(argv[0]);
+                return 1;
+        }
+    }
+
+    if (test_vect_file == NULL) {
+        VLOG_WARN("test vector file name required");
+        return 1;
+    }
+
     VLOG_INFO("Start maglev simulater ");
 
     hash_test();
 
     // verify test vector
-    char *test_vect_file = "./test_vector1.txt";
     // load test vectors to be verified
     test_vector_t *tv = load_test_vector(test_vect_file);
     if (tv == NULL) {
