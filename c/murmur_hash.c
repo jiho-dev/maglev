@@ -2,6 +2,7 @@
  * `murmurhash.c' - murmurhash
  *
  * copyright (c) 2014-2025 joseph werle <joseph.werle@gmail.com>
+ * https://github.com/jwerle/murmurhash.c/blob/master/murmurhash.c
  */
 #include <stdlib.h>
 #include <stdio.h>
