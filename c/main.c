@@ -8,6 +8,7 @@
 
 #include "list.h"
 #include "hash.h"
+#include "jhash.h"
 #include "group.h"
 #include "log.h"
 #include "maglev_hash.h"
@@ -15,31 +16,77 @@
 
 
 //////////////////////////////
+//
+int verify_crc32() {
+    VLOG_INFO("Start verifying CRC32C function");
 
-int hash_single_byte() {
-    uint32_t expected_hash=0xa89a73bf;
-    const unsigned char message = 6;
-    size_t len = 1;
+    uint32_t expected=0xc4451272;
+    uint32_t hash_data = 6;
+    size_t len = 4;
     uint32_t crc=0;
 
-    crc = 0;
-    crc = hash_bytes(&message, len, crc);
-    VLOG_INFO("SSE 4.2   : 0x%x, 0x%x expect=0x%x", message, crc, expected_hash);
+    //////////////////
+    // non-inverted version
+    crc = hash_add(0, hash_data);
+    VLOG_INFO("SSE4.2 CRC: 0x%x, 0x%x expect=0x%x", hash_data, crc, expected);
 
-    init_crc32c_table();
+    swtab_init_crc32c();
+    crc = 0;
+    crc = hash_add1(0, hash_data);
+    VLOG_INFO("SW1 CRC   : 0x%x, 0x%x expect=0x%x", hash_data, crc, expected);
 
     crc = 0;
-    crc = hash_bytes1(&message, len, crc); 
-    VLOG_INFO("Software1 : 0x%x, 0x%x expect=0x%x", message, crc, expected_hash);
+    crc = hash_add2(0, hash_data);
+    VLOG_INFO("SW2 CRC   : 0x%x, 0x%x expect=0x%x", hash_data, crc, expected);
+
+    ////////////////////////////////////////
+    // standard reflected verion
+    // CRC32C with reflected is not the same with hash_byte above
+    // this is the original CRC32C implementaion.
+    // https://www.sunshine2k.de/coding/javascript/crc/crc_js.html
+   
+    init_table_ref();
+    crc = 0;
+    expected = 0x12FD1978;
+    hash_data = 0x06060606; // byteorder free
+    crc = crc32c_ref(crc, (char*)&hash_data, 4);
+    VLOG_INFO("SW3 CRC   : 0x%x, 0x%x expect=0x%x", hash_data, crc, expected);
 
     crc = 0;
-    crc = hash_bytes2(&message, len, crc); 
-    VLOG_INFO("Software2 : 0x%x, 0x%x expect=0x%x", message, crc, expected_hash);
+    expected = 0x12FD1978;
+    hash_data = 0x06060606; // byteorder free
+    crc = crc32c_hw_ref(crc, (char*)&hash_data, 4);
+    VLOG_INFO("SW4 CRC   : 0x%x, 0x%x expect=0x%x", hash_data, crc, expected);
 
     return 0;
 }
 
-uint32_t hash_multiple_bytes() {
+int verify_hash_byte() {
+    VLOG_INFO("Start verifying Hash Byte");
+
+    uint32_t expected_hash=0xa89a73bf;
+    const unsigned char message = 6;
+    size_t len = 1;
+    uint32_t hash, hash_data;
+
+    hash = 0;
+    hash = hash_bytes(&message, len, hash);
+    VLOG_INFO("SSE4.2    : 0x%x, 0x%x expect=0x%x", message, hash, expected_hash);
+
+    swtab_init_crc32c();
+
+    hash = 0;
+    hash = hash_bytes1(&message, len, hash); 
+    VLOG_INFO("Software1 : 0x%x, 0x%x expect=0x%x", message, hash, expected_hash);
+
+    hash = 0;
+    hash = hash_bytes2(&message, len, hash); 
+    VLOG_INFO("Software2 : 0x%x, 0x%x expect=0x%x", message, hash, expected_hash);
+
+    return 0;
+}
+
+uint32_t verify_hash_bytes() {
 #if 0
 2026-01-17T07:40:32.743Z|00835|bridge|WARN|could not open network device vgw-pkt-out (No such device)
 2026-01-17T07:40:37.653Z|00029|ofproto_dpif_xlate(handler1)|INFO|MH-SEL: ipv4 src/dst mf.id=141, val=0xc25814ac
@@ -53,15 +100,16 @@ uint32_t hash_multiple_bytes() {
 2026-01-17T07:40:38.108Z|00837|bridge|WARN|could not open network device vgw-pkt-out (No such device)
 #endif
 
-    struct hash_val hval;
-
-    memset(&hval, 0, sizeof hval);
+    VLOG_INFO("Start verifying Hash Bytes");
 
     uint32_t expected_hash=0x5271e49c;
     uint32_t exp_port = 0xa89a73bf;
     uint32_t hash = 0;
     uint16_t port = 0;
     uint8_t protocol = 6; // tcp
+                          //
+    struct hash_val hval;
+    memset(&hval, 0, sizeof hval);
 
     // src/dst ip
     uint32_t ip = 0;
@@ -86,9 +134,65 @@ uint32_t hash_multiple_bytes() {
     // finallize hash
     hash = hash_bytes1(&hval, sizeof(hval), hash);
 
+    VLOG_INFO("Multiple bytes Hash: 0x%x, expect=0x%x, len=%d", hash, expected_hash, sizeof(hval));
 
-    //VLOG_DEBUG("In: ip=0x%x, port=0x%x", hval.pkt.ipv4_addr, hval.tp_port);
-    VLOG_INFO("Multiple bytes Hash: 0x%x, expect=0x%x", hash, expected_hash);
+    return hash;
+}
+
+uint32_t verify_murmur_hash_4bytes() {
+    VLOG_INFO("Start verifying mhash 4 Bytes");
+
+    uint32_t expected_hash=0x6bf83385;
+    uint32_t hash = 0;
+    uint8_t buf[4];
+
+    memset(buf, 1, sizeof(buf));
+
+    hash = murmurhash((char*)buf, sizeof(buf), 0);
+    VLOG_INFO("Multiple bytes mhash: 0x%x, expect=0x%x, len=%d", hash, expected_hash, sizeof(buf));
+
+    return hash;
+}
+
+uint32_t verify_murmur_hash_bytes() {
+    VLOG_INFO("Start verifying murmur hash Bytes");
+
+    uint32_t expected_hash=0x805eab91;
+    uint32_t hash = 0;
+    uint16_t port = 0;
+
+    struct hash_val hval;
+    memset(&hval, 0, sizeof hval);
+
+    // src/dst ip
+    uint32_t ip = 0;
+    ip = 0xc25814ac;
+    hval.pkt.ipv4_addr ^= ip;
+
+    // src/dst ip
+    ip = 0x1aea14ac;
+    hval.pkt.ipv4_addr ^= ip;
+
+    // port
+    port = 0x3ace;
+    hval.tp_port ^= port;
+
+    port = 0x5000;
+    hval.tp_port ^= port;
+
+#if 0
+    uint8_t *p = (uint8_t*)&hval;
+    for (int i=0; i<sizeof(hval); i++) {
+        if (i > 0 && i%4 == 0) {
+            printf("\n");
+        }
+        printf("%d ",  p[i]);
+    }
+    printf("\n");
+#endif
+
+    hash = murmurhash((char*)&hval, sizeof(hval), 0);
+    VLOG_INFO("Multiple bytes mhash: 0x%x, expect=0x%x, len=%d", hash, expected_hash, sizeof(hval));
 
     return hash;
 }
@@ -117,12 +221,6 @@ uint32_t get_hash(struct tv_entry *in) {
     hash = hash_bytes1(&hval, sizeof(hval), hash);
 
     return hash;
-}
-
-void hash_test() {
-    VLOG_INFO("Start verifying hash function");
-    hash_single_byte();
-    hash_multiple_bytes();
 }
 
 int add_bucket(struct group_dpif *group, int bkt_cnt, int weight) {
@@ -240,7 +338,15 @@ int main(int argc, char *argv[]) {
 
     VLOG_INFO("Start maglev simulater ");
 
-    hash_test();
+#if 0
+    verify_crc32();
+    verify_hash_byte();
+    verify_hash_bytes();
+#endif
+    verify_murmur_hash_4bytes();
+    verify_murmur_hash_bytes();
+
+    return 0;
 
     // verify test vector
     // load test vectors to be verified

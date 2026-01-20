@@ -57,8 +57,19 @@ struct ofputil_bucket;
 typedef unsigned int uint32, uint32_t, ovs_be32, u32;
 typedef unsigned short uint16, uint16_t, ovs_be16, u16;
 
+/*
+struct in6_addr {
+    union
+	{
+		uint8_t u6_addr8[16];
+		uint16_t u6_addr16[8];
+		uint32_t u6_addr32[4];
+	} in6_u;
+};
+*/
+
 // from ovs code
-struct hash_val {
+struct __attribute__((packed)) hash_val {
     union {
         ovs_be32 ipv4_addr;
         struct in6_addr ipv6_addr;
@@ -70,6 +81,7 @@ struct hash_val {
     } pkt;
 
     ovs_be16 tp_port;
+	uint16_t dummy; // for 4 bytes align
 } hash_val;
 
 ////////////////////////////////////////
