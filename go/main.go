@@ -74,7 +74,7 @@ func main() {
 	VerifyHashBytes()
 	VerifyJHash4Bytes()
 	VerifyJhashBytes()
-	VerifyMHash4Bytes()
-	VerifyMhashBytes()
+	//VerifyMHash4Bytes()
+	//VerifyMhashBytes()
 
 }

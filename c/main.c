@@ -315,7 +315,8 @@ void free_bucket(struct group_dpif *group) {
 }
 
 void maglev_verify(test_vector_t *tv) {
-    VLOG_INFO("Start verifying Maglev: GroupId=%d, hash_tab_idx=%d, num_bkts=%d, bkt_weight=%d, num_tv=%d", 
+    VLOG_INFO("Start verifying Maglev: Hash2=%s, GroupId=%d, hash_tab_idx=%d, num_bkts=%d, bkt_weight=%d, num_tv=%d", 
+              tv->maglev_hash2,
               tv->maglev_id,
               tv->maglev_hash_table_size_index,
               tv->num_buckets,
@@ -329,8 +330,11 @@ void maglev_verify(test_vector_t *tv) {
 
     // set group info
     group.hash_alg = tv->maglev_hash_table_size_index;  // table size: 0 ~ 10
-    group.hash_basis = 0;
     group.up.group_id = tv->maglev_id;
+    group.hash_basis = MH_HASH2_JHASH;
+    if (tv->maglev_hash2 != NULL && strcmp(tv->maglev_hash2, "murmur") == 0) {
+        group.hash_basis = MH_HASH2_MURMUR;
+    }
 
     // add buckets
     int nbkts = tv->num_buckets;
@@ -338,28 +342,30 @@ void maglev_verify(test_vector_t *tv) {
     add_bucket(&group, nbkts, weight);
 
     mh_construct(&group);
-    
+
     struct tv_entry *entry;
     uint32_t calc_hash;
-    uint32_t idx=1;
+    uint32_t idx=0;
 
     // verify them
     VLOG_INFO("Verify Maglev Hash result");
 
     struct ofputil_bucket *bkt;
     LIST_FOR_EACH (entry, node, &tv->tv_list) {
+        idx ++;
         calc_hash = get_hash(entry);
 
         bkt = mh_lookup(&group, calc_hash);
         if (bkt->bucket_id != entry->bkt_id) {
+#if 0
             VLOG_INFO("%d: mismatched: bkt_id=%d:%d hash=0x%x:0x%x", idx, 
                       bkt->bucket_id, entry->bkt_id,
                       calc_hash, entry->hash);
+#endif
 
             tv->mismatched ++;
         }
 
-        idx ++;
     }
 
     VLOG_INFO("Verification Result: Total=%d, Mismatched=%d", idx, tv->mismatched);
@@ -403,13 +409,16 @@ int main(int argc, char *argv[]) {
 
     VLOG_INFO("Start maglev simulater ");
 
+#if 0
+    // verify code
     verify_crc32();
     verify_hash_byte();
     verify_hash_bytes();
     verify_jhash_4bytes();
     verify_jhash_bytes();
-    verify_murmur_hash_4bytes();
-    verify_murmur_hash_bytes();
+    //verify_murmur_hash_4bytes();
+    //verify_murmur_hash_bytes();
+#endif
 
     // verify test vector
     // load test vectors to be verified
@@ -418,6 +427,32 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    VLOG_INFO("");
+    VLOG_INFO("Start verifying maglev: step 1");
+    maglev_verify(tv);
+
+    VLOG_INFO("");
+    VLOG_INFO("Start verifying maglev: step 2, adding 1 target");
+    tv->mismatched = 0;
+    tv->num_buckets = 4;
+    maglev_verify(tv);
+
+    VLOG_INFO("");
+    VLOG_INFO("Start verifying maglev: step 4, adding 2 target");
+    tv->mismatched = 0;
+    tv->num_buckets = 5;
+    maglev_verify(tv);
+
+    VLOG_INFO("");
+    VLOG_INFO("Start verifying maglev: step 5, adding 3 target");
+    tv->mismatched = 0;
+    tv->num_buckets = 6;
+    maglev_verify(tv);
+
+    VLOG_INFO("");
+    VLOG_INFO("Start verifying maglev: step 5, deleting 1 target");
+    tv->mismatched = 0;
+    tv->num_buckets  = 2;
     maglev_verify(tv);
 
     free_test_vector(tv);

@@ -4,8 +4,10 @@
 #include "list.h"
 
 #define MH_FLAG_FALLBACK		  0x0001
-
 #define MH_DEST_FLAG_DISABLE	  0x0001
+
+#define MH_HASH2_JHASH  0x01
+#define MH_HASH2_MURMUR 0x02
 
 struct maglev_dest_setup {
     uint32_t    offset; /* starting offset */
@@ -19,7 +21,7 @@ struct maglev_dest {
     //struct atomic_count version;        /* version number */
     uint32_t            gid;            /* group id */
     uint32_t            dest_id;        /* destination ID */
-    uint32_t            flags;          /* dest status flags */
+    uint32_t            flags;          /* dest status flags */ // MH_HASH2_*
     uint32_t            weight;         /* server weight. 0: disable */
     uint32_t            last_weight;    /* same with weight */
     void                *data;          /* user data */

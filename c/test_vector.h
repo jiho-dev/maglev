@@ -20,6 +20,7 @@ typedef struct test_vector_s {
 	uint32_t maglev_id;
 	uint32_t num_buckets;
 	uint32_t bucket_weight;
+	char	 *maglev_hash2;
 
     struct ovs_list tv_list;
     uint32_t num_tv_entries;

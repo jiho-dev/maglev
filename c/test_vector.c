@@ -47,6 +47,10 @@ test_vector_t* load_test_vector(char *test_vect_file)
                 token = strtok(NULL, delimiters);
                 tv->maglev_id = atoi(token);
                 continue;
+            } else if (strcmp("maglev_hash2" , token) == 0) {
+                token = strtok(NULL, delimiters);
+                tv->maglev_hash2 = strdup(token);
+                continue;
             } else if (strcmp("num_buckets" , token) == 0) {
                 token = strtok(NULL, delimiters);
                 tv->num_buckets = atoi(token);

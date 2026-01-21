@@ -42,6 +42,7 @@
 
 static void mh_reset_state(struct maglev_state *s);
 static int mh_get_dest_count(struct maglev_hash_service *svc);
+uint32_t murmurhash (const char *key, uint32_t len, uint32_t seed);
 
 ///////////////////////////////////////////
 
@@ -57,9 +58,14 @@ static inline uint32_t mh_hash1(uint8_t *data, uint32_t len)
     return hash_bytes(data, len, 0);
 }
 
-static inline uint32_t mh_hash2(uint8_t *data, uint32_t len)
+static inline uint32_t mh_jhash2(uint8_t *data, uint32_t len)
 {
     return jhash_bytes(data, len, 0);
+}
+
+static inline uint32_t mh_mhash2(uint8_t *data, uint32_t len)
+{
+    return jhash_bytes((char*)data, len, 0);
 }
 
 static inline uint32_t mh_get_table_size(uint32_t idx) {
@@ -113,7 +119,11 @@ static int mh_permutate(struct maglev_state *s, struct maglev_hash_service *svc)
     LIST_FOR_EACH (dest, n_list, &svc->destinations) {
         hash_data = dest->dest_id;
 
-        ds->offset = mh_hash2((uint8_t*)&hash_data, sizeof(hash_data)) % svc->table_size;
+        if (svc->flags & MH_HASH2_MURMUR) {
+            ds->offset = mh_mhash2((uint8_t*)&hash_data, sizeof(hash_data)) % svc->table_size;
+        } else {
+            ds->offset = mh_jhash2((uint8_t*)&hash_data, sizeof(hash_data)) % svc->table_size;
+        }
         ds->skip = mh_hash1((uint8_t*)&hash_data, sizeof(hash_data)) % (svc->table_size - 1) + 1;
         ds->perm = ds->offset;
 
