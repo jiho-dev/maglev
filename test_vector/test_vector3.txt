@@ -1,0 +1,17 @@
+# test vector #1 base on dev2 NLB
+
+# maglev config
+## hash table size index:  0 ~ 10
+# 0 : for debug
+# {11, 251, 509, 1021, 2039, 4093, 8191, 16381, 32749, 65521, 131071}
+maglev_hash_table_size_index:5
+maglev_id:100
+num_buckets:3
+bucket_weight:10
+maglev_hash2:jhash
+
+#### hash vectors
+#sip           sport dip           dport prot  Hash   bucket Id
+172.20.95.53  44192 172.20.250.149  80  6 0xe865088c  1
+172.20.95.53  44194 172.20.250.149  80  6 0xce468806  1
+172.20.95.53  44196 172.20.250.149  80  6 0x1bdfde70  2
