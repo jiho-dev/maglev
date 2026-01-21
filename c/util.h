@@ -440,7 +440,6 @@ static inline uint32_t get_unaligned_u32(const uint32_t *p_)
                  ((uint32_t) p[2] <<  8) | (uint32_t) p[3]);
 }
 
-
 uint32_t ip2int(const char *ip_str);
 char* trim (char *s);
 

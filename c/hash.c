@@ -70,6 +70,7 @@ uint32_t hash_bytes1(const void *p_, size_t n, uint32_t basis)
     hash = basis;
     while (n >= 4) {
         hash = hash_add1(hash, get_unaligned_u32(ALIGNED_CAST(const uint32_t *, p)));
+        //hash = hash_add1(hash, get_unaligned_u32_host(ALIGNED_CAST(const uint32_t *, p)));
         n -= 4;
         p += 4;
     }
@@ -208,7 +209,6 @@ uint32_t crc32c_hw_ref(uint32_t crc, const unsigned char *buf, size_t len) {
 
 /////////////////////////////////////////
 /// _mm_crc32_u32는 crc32c reflected 구현체와 다르다.
-
 
 uint32_t hash_add(uint32_t hash, uint32_t data)
 {

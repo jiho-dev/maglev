@@ -121,7 +121,7 @@ uint32_t verify_hash_bytes() {
     hval.pkt.ipv4_addr ^= ip;
 
     // protocol
-    hash = hash_bytes1(&protocol, sizeof(protocol), hash); 
+    hash = hash_bytes(&protocol, sizeof(protocol), hash); 
     VLOG_INFO("Port Hash: 0x%x, except=0x%x", hash, exp_port);
 
     // port
@@ -132,7 +132,7 @@ uint32_t verify_hash_bytes() {
     hval.tp_port ^= port;
 
     // finallize hash
-    hash = hash_bytes1(&hval, sizeof(hval), hash);
+    hash = hash_bytes(&hval, sizeof(hval), hash);
 
     VLOG_INFO("Multiple bytes Hash: 0x%x, expect=0x%x, len=%d", hash, expected_hash, sizeof(hval));
 
@@ -142,11 +142,14 @@ uint32_t verify_hash_bytes() {
 uint32_t verify_murmur_hash_4bytes() {
     VLOG_INFO("Start verifying mhash 4 Bytes");
 
-    uint32_t expected_hash=0x6bf83385;
+    uint32_t expected_hash=0xf4c0ec39;
     uint32_t hash = 0;
     uint8_t buf[4];
 
-    memset(buf, 1, sizeof(buf));
+    buf[0]=0;
+    buf[1]=1;
+    buf[2]=2;
+    buf[3]=3;
 
     hash = murmurhash((char*)buf, sizeof(buf), 0);
     VLOG_INFO("Multiple bytes mhash: 0x%x, expect=0x%x, len=%d", hash, expected_hash, sizeof(buf));
@@ -196,6 +199,68 @@ uint32_t verify_murmur_hash_bytes() {
 
     return hash;
 }
+
+uint32_t verify_jhash_4bytes() {
+    VLOG_INFO("Start verifying mhash 4 Bytes");
+
+    uint32_t expected_hash=0xe4cf1d42;
+    uint32_t hash = 0;
+    uint8_t buf[4];
+
+    buf[0]=0;
+    buf[1]=1;
+    buf[2]=2;
+    buf[3]=3;
+
+    hash = jhash_bytes((char*)buf, sizeof(buf), 0);
+    VLOG_INFO("Multiple bytes jhash: 0x%x, expect=0x%x, len=%d", hash, expected_hash, sizeof(buf));
+
+    return hash;
+}
+
+uint32_t verify_jhash_bytes() {
+    VLOG_INFO("Start verifying jhash Bytes");
+
+    uint32_t expected_hash=0x3adcbda7;
+    uint32_t hash = 0;
+    uint16_t port = 0;
+
+    struct hash_val hval;
+    memset(&hval, 0, sizeof hval);
+
+    // src/dst ip
+    uint32_t ip = 0;
+    ip = 0xc25814ac;
+    hval.pkt.ipv4_addr ^= ip;
+
+    // src/dst ip
+    ip = 0x1aea14ac;
+    hval.pkt.ipv4_addr ^= ip;
+
+    // port
+    port = 0x3ace;
+    hval.tp_port ^= port;
+
+    port = 0x5000;
+    hval.tp_port ^= port;
+
+#if 0
+    uint8_t *p = (uint8_t*)&hval;
+    for (int i=0; i<sizeof(hval); i++) {
+        if (i > 0 && i%4 == 0) {
+            printf("\n");
+        }
+        printf("0x%x ",  p[i]);
+    }
+    printf("\n");
+#endif
+
+    hash = jhash_bytes((char*)&hval, sizeof(hval), 0);
+    VLOG_INFO("Multiple bytes jhash: 0x%x, expect=0x%x, len=%d", hash, expected_hash, sizeof(hval));
+
+    return hash;
+}
+
 
 uint32_t get_hash(struct tv_entry *in) {
     struct hash_val hval;
@@ -338,15 +403,13 @@ int main(int argc, char *argv[]) {
 
     VLOG_INFO("Start maglev simulater ");
 
-#if 0
     verify_crc32();
     verify_hash_byte();
     verify_hash_bytes();
-#endif
+    verify_jhash_4bytes();
+    verify_jhash_bytes();
     verify_murmur_hash_4bytes();
     verify_murmur_hash_bytes();
-
-    return 0;
 
     // verify test vector
     // load test vectors to be verified
