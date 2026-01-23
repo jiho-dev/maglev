@@ -70,7 +70,7 @@ func parseArgs(args []string) *SshConfig {
 		return cfg
 	}
 
-	for i := 0; i < argLen; i++ {
+	for i := 1; i < argLen; i++ {
 		arg := args[i]
 		switch arg {
 		case "-h", "--help":

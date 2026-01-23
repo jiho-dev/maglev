@@ -5,6 +5,7 @@ import (
 	"context"
 	"io/ioutil"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,8 +59,6 @@ func run_ssh(ctx context.Context, cfg *SshConfig) error {
 			log.Printf("Disconnected to the server: client-%d -> %s \n", id, cfg.SshIp)
 		}()
 
-		var b bytes.Buffer
-
 		to := time.NewTicker(time.Duration(cfg.Interval) * time.Second)
 		defer to.Stop()
 
@@ -81,13 +80,18 @@ func run_ssh(ctx context.Context, cfg *SshConfig) error {
 					session.Close()
 					//log.Printf("Closed the new cmd channel: client-%d -> %s \n", id, cfg.SshIp)
 				}()
+				var outBuf bytes.Buffer
+				var errBuf bytes.Buffer
 
-				session.Stdout = &b
+				session.Stdout = &outBuf
+				session.Stderr = &errBuf
 				if err2 = session.Run(cfg.Cmd); err2 != nil {
-					log.Printf("failed to run cmd: id=%d, cmd=%s, %v\n", id, cfg.Cmd, err2)
+					log.Printf("failed to run cmd: id=%d, cmd=%s, err=[%s, %v]\n", id, cfg.Cmd, errBuf.String(), err2)
 					return
 				} else {
-					log.Printf("ssh-%d: `%s` succeeded\n", id, cfg.Cmd)
+					//log.Printf("ssh-%d: `%s` succeeded\n", id, cfg.Cmd)
+					tmp := strings.TrimSpace(outBuf.String())
+					log.Printf("ssh-%d: %s\n", id, tmp)
 				}
 			}
 		}
