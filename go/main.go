@@ -7,9 +7,18 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
+
+type ClientInfo struct {
+	Client   *ssh.Client
+	HostName string
+	lock     sync.Mutex
+}
 
 type SshConfig struct {
 	Filename   string
@@ -19,6 +28,9 @@ type SshConfig struct {
 	Timeout    uint32
 	Interval   uint32
 	Cmd        string
+
+	lock    sync.Mutex
+	clients map[uint32]*ClientInfo
 }
 
 func printHelp() {
